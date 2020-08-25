@@ -1,6 +1,5 @@
 -- Transfer files to docker image 
--- docker cp ./train.csv dev_hana_1:/tmp 
--- docker cp ./test.csv dev_hana_1:/tmp 
+-- docker cp ./train_without_quotes.csv dev_hana_1:/tmp 
  CONNECT SYSTEM PASSWORD Manager1 
 ;
 
@@ -32,21 +31,6 @@ INTO "DS_USER"."train" WITH RECORD DELIMITED BY '\n' FIELD DELIMITED BY ',' OPTI
 	 count(*) 
 from "train"
 
-DROP TABLE "DS_USER"."test";
-
- CREATE TABLE "DS_USER"."test" ("test_id" INTEGER,
-	 "question1" NVARCHAR(2000),
-	 "question2" NVARCHAR(2000) ) 
-;
-
-
- IMPORT 
-FROM CSV FILE '/tmp/test_5.csv' 
-INTO "DS_USER"."test" WITH RECORD DELIMITED BY '\n' FIELD DELIMITED BY ',' OPTIONALLY ENCLOSED BY '"' SKIP FIRST 1 ROW ERROR LOG '/tmp/err.csv' FAIL ON INVALID DATA ;
-
-select count(*) from "DS_USER"."test";
-
-
 -- # of unique ids in train
 select count(distinct "id"),count(distinct "qid1"),count(distinct "qid2") from "train";
 
@@ -56,13 +40,38 @@ select count(distinct "qid1"||"qid2") from "train";
 -- # of qid1=qid2
 select count(*) from "train" where "qid1"="qid2";
 
+-- of unique {qid1} union {qid2}
+select count(*) from (select "qid1" from "train" union select "qid2" from "train");
+
 -- # of question1=question2
+select count(*) from "train" where "question1"="question2";
+
+-- # of lower("question1")=lower("question2")
 select count(*) from "train" where lower("question1")=lower("question2");
 
 select * from "train" where lower("question1")=lower("question2");
 
 -- # of question1=question2 and !duplicate
 select count(*) from "train" where lower("question1")=lower("question2") AND "is_duplicate"=0;
+
+-- of is_duplicate
+SELECT COUNT(*) from "train" where "is_duplicate"=1;
+
+-- # of !is_duplicate
+SELECT COUNT(*) from "train" where "is_duplicate"=0;
+
+-- # of is_duplicate ! is null
+SELECT COUNT(*) from "train" where "is_duplicate" IS NULL;
+
+
+-- # of is_duplicate <>(0,1)
+SELECT COUNT(*) from "train" where "is_duplicate" <>1 and "is_duplicate"<>0;
+
+-- select question1 is null or empty
+SELECT COUNT(*) from "train" where "question1" is null or length("question1")=0
+
+-- select question2 is null or empty
+SELECT COUNT(*) from "train" where "question2" is null or length("question2")=0
 
 
 -- (A,B,duplicated) (B,C,duplicated) 
@@ -103,11 +112,19 @@ select "length",count(*) as "nb" from (select length("question1") as "length" fr
 select count(*) from (select "question1" from "train" union select "question2" from "train");
 
 select "question1" as "question" from "train" union select "question2" as "question" from "train";
-
+select count(distinct "question1" ) from "train";
+select count(distinct "question2" ) from "train";
 
 --  distribution of length of unique questions 
 
-select "length",count(*) as "nb" from (select length("question") as "length" from (select "question1" as "question" from "train" union select "question2" as "question" from "train") ) group by "length" order by  "length" desc;
+select "length",count(*) as "nb" from (select length("question") as "length" from (select "question1" as "question" from "train" union select "question2" as "question" from "train") ) group by "length" order by  "length";
+
+
+-- distribution of length of question1
+select "length",count(*) as "nb" from (select length("question1") as "length" from "train" ) group by "length" order by  "length";
+
+-- distribution of length of question2
+select "length",count(*) as "nb" from (select length("question2") as "length" from "train" ) group by "length" order by  "length";
 
 
 drop view "length_uniques";
