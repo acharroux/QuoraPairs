@@ -117,3 +117,7 @@ dmypy.json
 UntouchedData/
 input/
 output/
+PandasStore/
+
+
+~*.xlsx
