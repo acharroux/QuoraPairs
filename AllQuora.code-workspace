@@ -4,5 +4,8 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"python.condaPath": "/root/anaconda3/bin/conda",
+		"python.pythonPath": "/root/anaconda3/bin/python"
+	}
 }
