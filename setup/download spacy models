@@ -1,2 +1,14 @@
+zypper rm python3
+zypper rm python2
+zypper rm python
+Install anaconda linux
+rm /usr/bin/python
+ln -s /root/anaconda3/bin/python3 /usr/bin/python
+rm /usr/bin/python3
+ln -s /root/anaconda3/bin/python3 /usr/bin/python3
+/usr/bin/python3 -m pip install --upgrade pip
+pip install ray
+pip install spacy
 python -m spacy download en_core_web_sm
 python -m spacy download en_core_web_md
+python -m spacy download en_core_web_lg
