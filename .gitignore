@@ -120,7 +120,9 @@ output/
 PandasStore/
 
 
-*.xlsx
+
 # too dangerous
 *.csv
 *.zip
+*.pkl
+*.xlsx
