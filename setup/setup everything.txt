@@ -9,6 +9,7 @@ ln -s /root/anaconda3/bin/python3 /usr/bin/python3
 /usr/bin/python3 -m pip install --upgrade pip
 pip install ray
 pip install spacy
+pip install plotly
 python -m spacy download en_core_web_sm
 python -m spacy download en_core_web_md
 python -m spacy download en_core_web_lg
