@@ -1,7 +1,7 @@
 import numpy
 
 
-EXPERIMENT='Pouet'
+EXPERIMENT='multinomial_basic_features_unbalanced'
     
 
 # The name of the docker image (used to display docker command to copy apply files to windows host)
@@ -255,9 +255,11 @@ def excel_file_name(file_name):
 def pandas_to_excel(dataframe,file_name):
     dataframe.to_excel(excel_file_name(SEP_IN_FILE_NAME.join([EXPERIMENT,file_name])),float_format=EXCEL_PRECISION)
 
-def save_models_dict_to_excel(models_dict,file_name='all_models'):
-    results = models_dict_to_models_results(models_dict)
-    results.to_excel(excel_file_name('_'.join([EXPERIMENT,file_name])),float_format="%.4f")
+def save_models_dict_to_excel(results,file_name='all_models'):
+    file_name = excel_file_name('_'.join([EXPERIMENT,file_name]))
+    print_section('save %d results in %s' % (len(results),file_name))
+    results.to_excel(file_name,float_format="%.4f")
+    print_done("Done")
 
 # Kaggle submissions tool
 #######################################
@@ -286,13 +288,18 @@ def load_kaggle_submissions():
     print_info('All submissions are available in .xlsx format with %s' % file_name_excel)
     return submissions
 
-def show_last_submissions(submissions,n=3):
-    return submissions.nlargest(n,'date')
-
 def put_first(l,e):
     l.insert(0,e)
     return list(dict.fromkeys(l))
-
-
-def show_best_submissions(submissions,n=3,metric='publicScore',):
+    
+def get_best_submissions(submissions,n=3,metric='publicScore',):
+    print_info('Best %d submissions based on %s' % (n,metric))
     return submissions.nsmallest(n,metric)[put_first(submissions.columns.values.tolist(),metric)]
+
+def get_last_submissions(submissions,n=3):
+    print_info('Last %d submissions' % n)
+    return submissions.nlargest(n,'date')[put_first(submissions.columns.values.tolist(),'date')]
+
+
+
+

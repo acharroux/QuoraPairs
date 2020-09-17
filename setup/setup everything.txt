@@ -14,3 +14,8 @@ python -m spacy download en_core_web_sm
 python -m spacy download en_core_web_md
 python -m spacy download en_core_web_lg
 conda install -c conda-forge tqdm
+
+pip install -U notebook-as-pdf
+pyppeteer-install
+
+jupyter-nbconvert --to PDFviaHTML ./Analysis/SimpleAnalysis.ipynb 
