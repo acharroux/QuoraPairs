@@ -19,3 +19,6 @@ pip install -U notebook-as-pdf
 pyppeteer-install
 
 jupyter-nbconvert --to PDFviaHTML ./Analysis/SimpleAnalysis.ipynb 
+
+./bash_profile
+histchars=?

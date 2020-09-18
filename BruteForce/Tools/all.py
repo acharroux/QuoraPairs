@@ -175,7 +175,7 @@ from itertools import chain, combinations
 def all_numeric_columns(dataframe):
     l = list()
     for name in dataframe.columns:
-        if dataframe.dtypes[name] in ['int64','float64'] and name not in ['test_id','id','qid1','qid2','is_duplicate']:
+        if dataframe.dtypes[name] in ['int64','float64'] and name not in ['test_id','id','qid1','qid2','is_duplicate','weight']:
             l.append( name)
     return l
 
