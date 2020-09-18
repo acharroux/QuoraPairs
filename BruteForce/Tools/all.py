@@ -149,7 +149,7 @@ def save_dataframe(df,file_name):
     print_info('Save %s' % file_name )
     df.to_pickle(local_pandas_store_file_name(file_name))
 
-def load_or_build_dataframe(dataframe_name,file_name,builder,dataframe):
+def load_or_build_dataframe(dataframe_name,file_name,builder,dataframe,param1=None):
     start = time.time()
     print_section('%s: Load or rebuild %s' % (dataframe_name,file_name))
     if os.path.exists(local_pandas_store_file_name(file_name)):
@@ -158,7 +158,10 @@ def load_or_build_dataframe(dataframe_name,file_name,builder,dataframe):
     else:
         print_warning("!!!!! %s does not exists!!!" % local_pandas_store_file_name(file_name))
         print_warning('Rebuild and save it')
-        df = builder(dataframe)
+        if param1 is None:
+            df = builder(dataframe)
+        else:
+            df = builder(dataframe,param1)
         save_dataframe(df,file_name)
     print_done('Done:%s contains %d lines' % (file_name,len(df)),top=start)
     return df
