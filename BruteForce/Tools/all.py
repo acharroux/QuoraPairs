@@ -69,11 +69,25 @@ def print_done(s,top=0):
     else:
         print_html('<span style="color:LIMEGREEN"><small><b><i>'+s+'</i></b><p></p></small></span>')
 
-def print_info(s):
-    print_html('<span style="color:LIMEGREEN"><small>'+s+'</small></span>')
+def print_info(s,top=0):
+    if top >0:
+        print_html('<span style="color:LIMEGREEN"><small>'+s+' in '+str(round(time.time()-top,1))+' s</small></span>')
+    else:
+        print_html('<span style="color:LIMEGREEN"><small>'+s+'s</small></span>')
     
-def print_warning(s):
-    print_html('<span style="color:LIGHTSALMON"><small>'+s+'</small></span>')
+def print_warning(s,top=0):
+    if top >0:
+        print_html('<span style="color:LIGHTSALMON"><small>'+s+' in '+str(round(time.time()-top,1))+' s</small></span>')
+    else:
+        print_html('<span style="color:LIGHTSALMON"><small>'+s+'</small></span>')
+
+def print_alert(s,top=0):
+    if top >0:
+        print_html('<span style="color:RED">'+s+' in '+str(round(time.time()-top,1))+' s</span>')
+    else:
+        print_html('<span style="color:RED">'+s+' </span>')
+
+
 
 ## Plenty of small tools to help not creating a huge mess
 
