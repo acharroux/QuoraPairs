@@ -26,6 +26,7 @@ from IPython.display import IFrame, display, HTML
 
 def print_html(s):
     display(HTML(s, metadata=dict(isolated=True)))
+    #print(s)
     
 def start_small():
     display(HTML('<span><small>', metadata=dict(isolated=True)))
@@ -73,7 +74,7 @@ def print_info(s,top=0):
     if top >0:
         print_html('<span style="color:LIMEGREEN"><small>'+s+' in '+str(round(time.time()-top,1))+' s</small></span>')
     else:
-        print_html('<span style="color:LIMEGREEN"><small>'+s+'s</small></span>')
+        print_html('<span style="color:LIMEGREEN"><small>'+s+'</small></span>')
     
 def print_warning(s,top=0):
     if top >0:
