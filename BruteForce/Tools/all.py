@@ -130,7 +130,7 @@ def prepare_environnement(experiment_name):
 
     # with recent versions use tqdm.pandas(desc="my bar!")
     # tqdm_pandas(tqdm())
-    tqdm.pandas()
+    tqdm.pandas(leave=True)
 
     if not os.path.exists(env_path()):
         print_info('Create %s' % env_path())
