@@ -22,3 +22,5 @@ jupyter-nbconvert --to PDFviaHTML ./Analysis/SimpleAnalysis.ipynb
 
 ./bash_profile
 histchars=?
+pip install xgboost
+

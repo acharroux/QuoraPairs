@@ -320,4 +320,404 @@ def get_last_submissions(submissions,n=3):
 
 
 
+################################################### 
+# Simple strategy : all defaults
 
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import ComplementNB
+from sklearn.naive_bayes import MultinomialNB
+from sklearn import metrics
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV
+
+
+WEIGHT='weight'
+
+
+# This will add a suffix to all keys of a dict
+# Used to add _test,_train,_full to keys of infos about a model
+
+PRINT_INFOS_ON_2_MODELS = {
+    'accuracy_80_20': '%.4f',
+    'score_80_20': '%.4f',
+    'logloss_proba_80_20': '%.4f',
+    'time_80_20': '%.1f',
+
+    'accuracy_100_0': '%.4f',
+    'score_100_0': '%.4f',
+    'logloss_proba_100_0': '%.4f',
+    'time_100_0': '%.1f',
+
+    'nb_features': '%d',
+    'column_names': '%s'
+}
+
+PRINT_INFOS_ON_MODEL = {
+    'accuracy': '%.6f',
+    'score': '%.6f',
+    'logloss_proba': '%.6f',
+    'time': '%.1f',
+}
+
+
+def add_suffix_to_keys(d,s):
+    if s!='':
+        return dict(zip([k+'_'+s for k in d.keys()],d.values()))
+    else:
+        return d
+
+def add_suffix(m,s):
+    if s!='':
+        return '_'.join([m,s])
+    else:
+        return m
+
+def format_model_infos(message,keys_formats,infos,suffix):
+    values = list()
+    if suffix != '':
+        for k,f in keys_formats.items():
+            values.append( f % infos[k+'_'+suffix])
+    else:
+        for k,f in keys_formats.items():
+            values.append( f % infos[k])
+    #return print_info( '%s %s' %(message,'&nbsp;|&nbsp;'.join(values)))
+    return '%s %s' %(message,' | '.join(values))
+
+def print_model_infos(message,keys_formats,infos,suffix):
+    print_info(format_model_infos(message,keys_formats,infos,suffix))
+
+def print_header_infos_model(key_formats):
+    print_info('|'.join(key_formats.keys()))
+
+
+def compute_metrics_model(model,input_df,target_df,suffix,sample_weight = None,show = True):
+    prediction_df = model.predict(input_df)
+    prediction_proba_df = model.predict_proba(input_df)
+    res = metrics.classification_report(target_df,prediction_df,sample_weight = sample_weight,output_dict=True)
+    accuracy = res['accuracy']
+    score = res['weighted avg']['f1-score']
+    logloss_proba = metrics.log_loss(target_df,prediction_proba_df,sample_weight = sample_weight)
+    if show:
+        print('Classification report on %s' % suffix)
+        print(metrics.classification_report(target_df,prediction_df,sample_weight = sample_weight))
+    return add_suffix_to_keys(
+            {
+             'accuracy':accuracy,
+             'score':score,
+             'logloss_proba':logloss_proba,
+             'model':model
+           },
+           suffix)
+
+#           
+
+def  build_algorithm(algo_spec,show=False):
+    if show:
+        print_info('algorithm is:%s' % str(algo_spec['algorithm']()))
+    return algo_spec['algorithm']()
+
+def build_model_with_test(algo_spec,input_train,target_train,input_test,target_test,column_names,suffix,show=True):
+    input_train_weight = None
+    input_test_weight = None
+    if WEIGHT in input_train.columns:
+        input_train_weight = input_train[WEIGHT]
+        input_test_weight = input_test[WEIGHT]
+
+    # input_train & input_test must contains only features
+    input_train = input_train[list(column_names)]
+    input_test = input_test[list(column_names)]
+    if show:
+        if input_train_weight is not None:
+            print_info('Model with weight')
+        print_info( 'Training:%d lines Test:%d Nb Features: %d' % (len(input_train),len(input_test),len(input_train.columns)))
+    # create the model
+    model = build_algorithm(algo_spec)
+    start = time.time()
+    # learn !!
+    model.fit(input_train,target_train,sample_weight = input_train_weight)
+    duration = time.time()-start
+    infos = compute_metrics_model(model,input_test,target_test,suffix,sample_weight = input_test_weight,show=show)
+    infos.update({add_suffix('time',suffix):duration})
+    if show:      
+        print_model_infos(suffix,PRINT_INFOS_ON_MODEL,infos,suffix)
+    return  infos
+    
+def build_model_100_0(algo_spec,input,column_names,target,show=True):
+    SUFFIX = '100_0'
+    input_full_weight = None
+    if WEIGHT in input.columns:
+        input_full_weight = input[WEIGHT]
+    input_full = input[list(column_names)]
+    target_full = target
+
+    if show:
+        if input_full_weight is not None:
+            print_info('Model with weight')
+        print_info( 'Training on %dx%d features' % (len(input_full),len(input_full.columns)))
+    # create the model
+    model = build_algorithm(algo_spec)
+    start = time.time()
+    # learn !!
+    model.fit(input_full,target_full,sample_weight = input_full_weight)
+    duration = time.time()-start
+    infos = compute_metrics_model(model,input_full,target_full,SUFFIX,sample_weight = input_full_weight,show=show)
+    infos.update({add_suffix('time',SUFFIX):duration})
+    if show:
+        print_model_infos(SUFFIX,PRINT_INFOS_ON_MODEL,infos,SUFFIX)
+    return infos
+
+def build_model_80_20(algo_spec,input,column_names,target,show=True):
+    SUFFIX = '80_20'
+    input_train,input_test,target_train,target_test = train_test_split(input,target,random_state=42,test_size=0.2)
+    infos = build_model_with_test(algo_spec,input_train,target_train,input_test,target_test,column_names,SUFFIX,show=show)
+    return infos
+
+# old way to build model
+# one on train+test=80+20
+# one on full train
+# all default parameters
+def build_model_80_20_and_100_0(algo_spec,input,column_names,target,show=True):
+    
+    infos = build_model_80_20(algo_spec,input,column_names,target,show=show)
+    infos.update(build_model_100_0(algo_spec,input,column_names,target,show=show))
+    infos.update(
+        {
+            'nb_features':len(column_names),
+            'column_names':clean_combination_name(column_names),
+            'columns': column_names
+        })
+    return infos
+
+def models_dict_default_to_df(models_dict):
+    # reorder also the columns in a way I use more convenient
+        return pandas.DataFrame.from_dict(models_dict, orient='index').reindex(columns=['logloss_proba_80_20','logloss_proba_100_0','nb_features','column_names','accuracy_80_20','accuracy_100_0','score_80_20','score_100_0','model_80_20','model_100_0','columns','time_80_20','time_100_0'])
+
+def build_default_model_on_all_subset_of_simple_features(algo_spec,dataframe,target):
+    start = time.time()
+    all_combinations = list(all_subsets(all_numeric_columns(dataframe)))
+    steps_for_progress = int(len(all_combinations)/20)
+    print_section('%s : Build all models ((80,20)+(100,0)) on every combination of simple features - %d lines' % (EXPERIMENT,len(dataframe)))
+    print_warning('%d*2 models built - only %d logged here' % (len(all_combinations),(int(len(all_combinations)/steps_for_progress))))
+    models_dict = dict()
+    print_header_infos_model(PRINT_INFOS_ON_2_MODELS)
+    progress = tqdm(all_combinations)
+    num_model = 0
+    min_log_loss = 1000
+    for c in progress:
+        if (len(c)) >0:
+            infos = build_model_80_20_and_100_0(algo_spec,dataframe,c,target,show=False)
+            models_dict[clean_combination_name(c)] = infos
+            # There is a smart panda progress bar but invisible in pdf
+            # So try to minimize logs and still have some progress info
+            if min(infos['logloss_proba_80_20'],infos['logloss_proba_100_0'])<min_log_loss:
+                min_log_loss = min(infos['logloss_proba_80_20'],infos['logloss_proba_100_0'])
+                print_info(format_model_infos('',PRINT_INFOS_ON_2_MODELS,infos,''))
+                new_min=True
+            else:
+                new_min = False
+            if (num_model % steps_for_progress) == 0 and not new_min:
+                  print_warning(format_model_infos('',PRINT_INFOS_ON_2_MODELS,infos,''))
+            num_model += 1
+            progress.refresh()
+    print_done('Done',top=start)
+    # Design mistake : need to convert dict to dataframe :(
+    return models_dict_default_to_df(models_dict)
+
+################################################### 
+# Hyper parameters
+
+PRINT_INFOS_HYPER_ON_MODEL = {
+    'accuracy': '%.6f',
+    'score': '%.6f',
+    'logloss_proba': '%.6f',
+    'params': '%s'
+}
+
+
+def build_searcher(algo_spec,show=True):
+    verbose = 0
+    if show:
+        verbose=3
+    class_searcher = algo_spec['searcher']
+    algorithm = algo_spec['algorithm']
+    hyper_parameters = algo_spec['hyper_parameters']
+    if show:
+        print_info( 'Searcher : %s' % str(class_searcher(algorithm(),hyper_parameters)))
+    if class_searcher == RandomizedSearchCV:
+        return class_searcher(
+            algorithm(),
+            hyper_parameters,
+            random_state=42,
+            scoring='neg_log_loss',
+            n_jobs=os.cpu_count(),
+            pre_dispatch=2*os.cpu_count(),
+            verbose=verbose,
+            refit=True)
+    else:
+        return class_searcher(
+            algorithm(),
+            hyper_parameters,
+            scoring='neg_log_loss',
+            n_jobs=os.cpu_count(),
+            pre_dispatch=2*os.cpu_count(),
+            verbose=verbose,
+            refit=True)
+
+
+def build_model_with_test_hyper(algo_spec,input_train,target_train,input_test,target_test,column_names,suffix,show=True):
+    input_train_weight = None
+    input_test_weight = None
+    if WEIGHT in input_train.columns:
+        input_train_weight = input_train[WEIGHT]
+        input_test_weight = input_test[WEIGHT]
+
+    # input_train & input_test must contains only features
+    input_train = input_train[list(column_names)]
+    input_test = input_test[list(column_names)]
+    if show:
+        print_info('Model with hyper parameter')
+        if input_train_weight is not None:
+            print_info('Model with weight')
+        print_info( 'Training:%d lines Test:%d Nb Features: %d' % (len(input_train),len(input_test),len(input_train.columns)))
+    start = time.time()
+    # Build the thing that will explore hyper parameters
+    searcher = build_searcher(algo_spec,show=show)
+    # Explore !!
+    searcher.fit(input_train,target_train,sample_weight = input_train_weight)
+    # Here is our best model 
+    model = searcher.best_estimator_
+    # Recompute our set of metrics
+    infos = compute_metrics_model(model,input_test,target_test,suffix,sample_weight = input_test_weight,show=show)
+    infos.update(
+        {
+            # keep a clear status of parameters found by searcher
+            add_suffix('params',suffix):searcher.best_params_,
+            add_suffix('time',suffix):time.time()-start
+        })
+    if show:      
+        print_model_infos(suffix,PRINT_INFOS_HYPER_ON_MODEL,infos,suffix)
+    return  infos
+    
+def build_model_100_0_hyper(algo_spec,input,column_names,target,show=True):
+    SUFFIX = '100_0'
+    input_full_weight = None
+    if WEIGHT in input.columns:
+        input_full_weight = input[WEIGHT]
+    input_full = input[list(column_names)]
+    target_full = target
+
+    if show:
+        print_info('Model with hyper parameters')
+        if input_full_weight is not None:
+            print_info('Model with weight')
+        print_info( 'Training on %dx%d features' % (len(input_full),len(input_full.columns)))
+    start = time.time()
+    # Build the thing that will explore hyper parameters
+    searcher = build_searcher(algo_spec,show=show)
+    # Explore !!
+    searcher.fit(input_full,target_full,sample_weight = input_full_weight)
+    # Here is our best model
+    model = searcher.best_estimator_
+    # Recompute our set of metrics
+    infos = compute_metrics_model(model,input_full,target_full,SUFFIX,sample_weight = input_full_weight,show=show)
+    infos.update(
+        {
+            # keep a clear status of parameters found by searcher
+            add_suffix('params',SUFFIX):searcher.best_params_,
+            add_suffix('time',SUFFIX):time.time()-start
+        })
+    if show:
+        print_model_infos(SUFFIX,PRINT_INFOS_HYPER_ON_MODEL,infos,SUFFIX)
+    return infos
+
+def build_model_80_20_hyper(algo_spec,input,column_names,target,show=True):
+    SUFFIX = '80_20'
+    input_train,input_test,target_train,target_test = train_test_split(input,target,random_state=42,test_size=0.2)
+    infos = build_model_with_test_hyper(algo_spec,input_train,target_train,input_test,target_test,column_names,SUFFIX,show=show)
+    return infos
+
+# old way to build model
+# one on train+test=80+20
+# one on full train
+def build_model_80_20_and_100_0_hyper(algo_spec,input,column_names,target,show=True):
+    
+    infos = build_model_80_20_hyper(algo_spec,input,column_names,target,show=show)
+    infos.update(build_model_100_0_hyper(algo_spec,input,column_names,target,show=show))
+    infos.update(
+        {
+            'nb_features':len(column_names),
+            'column_names':clean_combination_name(column_names),
+            'columns': column_names
+        })
+    return infos
+
+PRINT_INFOS_HYPER_ON_2_MODELS = {
+    'accuracy_80_20': '%.4f',
+    'score_80_20': '%.4f',
+    'logloss_proba_80_20': '%.4f',
+    'params_80_20': '%s',
+
+    'accuracy_100_0': '%.4f',
+    'score_100_0': '%.4f',
+    'logloss_proba_100_0': '%.4f',
+    'params_100_0': '%s',
+
+    'nb_features': '%d',
+    'column_names': '%s'
+}
+
+INFOS_MODEL_TO_KEEP =  [
+'logloss_proba_80_20',
+'params_80_20',
+'logloss_proba_100_0',
+'params_100_0',
+'nb_features',
+'accuracy_80_20',
+'accuracy_100_0',
+'score_80_20',
+'score_100_0',
+'column_names',
+'columns',
+'model_100_0',
+'model_80_20',
+'time_80_20',
+'time_100_0'
+]
+
+# bad design choice : a DataFrame can be more convenient than a dict
+# But then, it is convenient to suppress all non numeric/string columns
+def models_dict_hyper_to_df(models_dict):
+    # reorder also the columns in a way I use more convenient
+    return pandas.DataFrame.from_dict(models_dict,orient='index')[INFOS_MODEL_TO_KEEP]
+
+def build_hyper_model_on_all_subset_of_simple_features(algo_spec,dataframe,target):
+    start = time.time()
+    all_combinations = list(all_subsets(all_numeric_columns(dataframe)))
+    steps_for_progress = int(len(all_combinations)/20)
+    print_section('%s : Build all models (80_20 & 100_0) on every combination of simple features - %d lines' % (EXPERIMENT,len(dataframe)))
+    print_warning('%d*2 models optimized - only %d logged or best here. Watch for green' % (len(all_combinations),(int(len(all_combinations)/steps_for_progress))))
+    models_dict = dict()
+    print_header_infos_model(PRINT_INFOS_HYPER_ON_2_MODELS)
+    progress = tqdm(all_combinations)
+    min_log_loss=1000
+    num_model = 0
+    for c in progress:
+        #if (len(c)) ==1:
+        if (len(c)) >0:
+            infos = build_model_80_20_and_100_0_hyper(algo_spec,dataframe,c,target,show=False)
+            models_dict[clean_combination_name(c)] = infos
+            if min(infos['logloss_proba_80_20'],infos['logloss_proba_100_0'])<min_log_loss:
+                min_log_loss = min(infos['logloss_proba_80_20'],infos['logloss_proba_100_0'])
+                print_info(format_model_infos('',PRINT_INFOS_HYPER_ON_2_MODELS,infos,''))
+                new_min=True
+            else:
+                new_min = False
+            # There is a smart panda progress bar but invisible in pdf
+            # So try to minimize logs and still have some progress info
+            if (num_model % steps_for_progress) == 0 and not new_min:
+                  print_warning(format_model_infos('',PRINT_INFOS_HYPER_ON_2_MODELS,infos,''))
+            num_model += 1
+            progress.refresh()
+    print_done('Done',top=start)
+    # Design mistake : need to convert dict to dataframe :(
+    return models_dict_hyper_to_df(models_dict)
