@@ -273,8 +273,8 @@ def excel_file_name(file_name):
 def pandas_to_excel(dataframe,file_name):
     dataframe.to_excel(excel_file_name(SEP_IN_FILE_NAME.join([EXPERIMENT,file_name])),float_format=EXCEL_PRECISION)
 
-def save_models_dict_to_excel(results,file_name='all_models'):
-    file_name = excel_file_name('_'.join([EXPERIMENT,file_name]))
+def save_models_dict_to_excel(results,tag = 'all_models'):
+    file_name = excel_file_name('_'.join([EXPERIMENT,tag]))
     print_section('save %d results in %s' % (len(results),file_name))
     results.to_excel(file_name,float_format="%.4f")
     print_done("Done")
@@ -312,11 +312,11 @@ def put_first(l,e):
     
 def get_best_submissions(submissions,n=3,metric='publicScore',):
     print_info('Best %d submissions based on %s' % (n,metric))
-    return submissions.nsmallest(n,metric)[put_first(submissions.columns.values.tolist(),metric)]
+    return submissions.nsmallest(n,metric)[put_first(submissions.columns.values.tolist(),metric)].sort()
 
 def get_last_submissions(submissions,n=3):
     print_info('Last %d submissions' % n)
-    return submissions.nlargest(n,'date')[put_first(submissions.columns.values.tolist(),'date')]
+    return submissions.nlargest(n,'date')[put_first(submissions.columns.values.tolist(),'date')].sort()
 
 
 
@@ -390,9 +390,13 @@ def print_header_infos_model(key_formats):
     print_info('|'.join(key_formats.keys()))
 
 
-def compute_metrics_model(model,input_df,target_df,suffix,sample_weight = None,show = True):
-    prediction_df = model.predict(input_df)
-    prediction_proba_df = model.predict_proba(input_df)
+def compute_metrics_model(algo_spec,model,input_df,target_df,suffix,sample_weight = None,show = True):
+    if 'predicter' in algo_spec:
+        prediction_df,prediction_proba_df = algo_spec['predicter'](model,input_df,target_df)
+    else:
+        prediction_df = model.predict(input_df)
+        prediction_proba_df = model.predict_proba(input_df)
+
     res = metrics.classification_report(target_df,prediction_df,sample_weight = sample_weight,output_dict=True)
     accuracy = res['accuracy']
     score = res['weighted avg']['f1-score']
@@ -431,12 +435,20 @@ def build_model_with_test(algo_spec,input_train,target_train,input_test,target_t
             print_info('Model with weight')
         print_info( 'Training:%d lines Test:%d Nb Features: %d' % (len(input_train),len(input_test),len(input_train.columns)))
     # create the model
-    model = build_algorithm(algo_spec)
+
     start = time.time()
-    # learn !!
-    model.fit(input_train,target_train,sample_weight = input_train_weight)
+    if 'learner' in algo_spec:
+        # something specific like XGBoost
+        model = algo_spec['learner'](algo_spec,input_train,target_train,input_test,target_test,input_train_weight,input_test_weight,show=show)
+    else:
+        # More standard
+        model = build_algorithm(algo_spec)
+        # learn !!
+        model.fit(input_train,target_train,sample_weight = input_train_weight)
+
     duration = time.time()-start
-    infos = compute_metrics_model(model,input_test,target_test,suffix,sample_weight = input_test_weight,show=show)
+    infos = compute_metrics_model(algo_spec,model,input_test,target_test,suffix,sample_weight = input_test_weight,show=show)
+
     infos.update({add_suffix('time',suffix):duration})
     if show:      
         print_model_infos(suffix,PRINT_INFOS_ON_MODEL,infos,suffix)
@@ -455,12 +467,18 @@ def build_model_100_0(algo_spec,input,column_names,target,show=True):
             print_info('Model with weight')
         print_info( 'Training on %dx%d features' % (len(input_full),len(input_full.columns)))
     # create the model
-    model = build_algorithm(algo_spec)
     start = time.time()
-    # learn !!
-    model.fit(input_full,target_full,sample_weight = input_full_weight)
+    if 'learner' in algo_spec:
+        # something specific like XGBoost
+        model = algo_spec['learner'](algo_spec,input_full,target_full,None,None,input_full_weight,None,show=show)
+    else:
+        # More standard
+        model = build_algorithm(algo_spec)
+        # learn !!
+        model.fit(input_full,target_full,sample_weight = input_full_weight)
+
     duration = time.time()-start
-    infos = compute_metrics_model(model,input_full,target_full,SUFFIX,sample_weight = input_full_weight,show=show)
+    infos = compute_metrics_model(algo_spec,model,input_full,target_full,SUFFIX,sample_weight = input_full_weight,show=show)
     infos.update({add_suffix('time',SUFFIX):duration})
     if show:
         print_model_infos(SUFFIX,PRINT_INFOS_ON_MODEL,infos,SUFFIX)
@@ -587,7 +605,7 @@ def build_model_with_test_hyper(algo_spec,input_train,target_train,input_test,ta
     # Here is our best model 
     model = searcher.best_estimator_
     # Recompute our set of metrics
-    infos = compute_metrics_model(model,input_test,target_test,suffix,sample_weight = input_test_weight,show=show)
+    infos = compute_metrics_model(algo_spec,model,input_test,target_test,suffix,sample_weight = input_test_weight,show=show)
     infos.update(
         {
             # keep a clear status of parameters found by searcher
@@ -619,7 +637,7 @@ def build_model_100_0_hyper(algo_spec,input,column_names,target,show=True):
     # Here is our best model
     model = searcher.best_estimator_
     # Recompute our set of metrics
-    infos = compute_metrics_model(model,input_full,target_full,SUFFIX,sample_weight = input_full_weight,show=show)
+    infos = compute_metrics_model(algo_spec,model,input_full,target_full,SUFFIX,sample_weight = input_full_weight,show=show)
     infos.update(
         {
             # keep a clear status of parameters found by searcher
@@ -721,3 +739,145 @@ def build_hyper_model_on_all_subset_of_simple_features(algo_spec,dataframe,targe
     print_done('Done',top=start)
     # Design mistake : need to convert dict to dataframe :(
     return models_dict_hyper_to_df(models_dict)
+
+
+
+    #####Cross validation
+
+from sklearn import model_selection
+
+
+PRINT_CROSS_INFOS_ON_MODEL = {
+    'logloss_proba_best': '%.6f',
+    'logloss_proba_mean': '%.6f',
+    'accuracy_best': '%d',
+    'accuracy_mean': '%.6f',
+    'score_best': '%.6f',
+    'score_mean': '%.6f',
+    'time_mean': '%.1f',
+    'nb_features': '%d'
+    }
+
+ALL_CROSS_INFOS_ON_MODEL_TEST = [
+    'logloss_proba_mean','logloss_proba_std','logloss_proba_min','logloss_proba_max', 'logloss_proba_best', 'logloss_proba_worst','logloss_proba_fold_best','logloss_proba_fold_worst',
+    'nb_features',
+    'column_names',
+    'accuracy_mean','accuracy_std','accuracy_min','accuracy_max','accuracy_best','accuracy_worst','accuracy_fold_best','accuracy_fold_worst',
+    'score_mean','score_std','score_min','score_max','score_best','score_worst','score_fold_best','score_fold_worst'
+    'time_mean',
+    'logloss_proba_model_best',
+    'logloss_proba_model_worst',
+    'accuracy_model_best',
+    'accuracy_model_worst',
+    'score_model_best',
+    'score_model_worst',
+    'columns',
+    ]
+
+
+# bad design choice : a DataFrame can be more convenient than a dict
+# But then, it is convenient to suppress all non numeric/string columns
+def models_cross_dict_to_df(models_dict):
+    # reorder also the columns in a way I use more convenient
+    return pandas.DataFrame.from_dict(models_dict, orient='index').reindex(columns=ALL_CROSS_INFOS_ON_MODEL_TEST)
+# return a dict of metrics with fold indication
+def build_model_fold(algo_spec,fold,input_train,target_train,input_test,target_test,column_names,show=True):
+    # '' as all infos are in an outer dict 
+    return build_model_with_test(algo_spec,input_train,target_train,input_test,target_test,column_names,'',show=show)
+
+
+def build_naivebayes_model_with_cross_validation(algo_spec,input,column_names,target,folds=5,show=True):
+    if show:
+        print_warning('Cross validation on %d stratified folds on %d rows' % (folds,len(input)))
+    start=time.time()
+    i = 1
+    cross_validation = model_selection.StratifiedKFold(n_splits=folds,shuffle=True,random_state=42)
+    metrics = dict()
+    for (train_index,test_index),i in zip(cross_validation.split(input,target),range(1,folds+1)):
+        if show:
+            print_info("Fold %d/%d" % (i,folds))
+        X_train, X_test = input[train_index[0]:len(train_index)-1], input[test_index[0]:len(test_index)-1]
+        Y_train, Y_test = target[train_index[0]:len(train_index)-1], target[test_index[0]:len(test_index)-1]
+        #metrics[i] = build_naivebayes_model_with_test(X_train,Y_train,X_test,Y_test,column_names,show=show)
+        metrics[i] = build_model_fold(algo_spec,i,X_train,Y_train,X_test,Y_test,column_names,show=show)
+    if show:
+        print_done('Cross validation done',top=start)
+    metrics_df = pandas.DataFrame.from_dict(metrics,orient='index')
+    means = dict()
+    for m in all_numeric_columns(metrics_df):
+        means[m+'_mean'] = metrics_df[m].mean()
+        means[m+'_std'] = metrics_df[m].std()
+        means[m+'_max'] = metrics_df[m].max()
+        means[m+'_min'] = metrics_df[m].min()
+        if ('logloss' in m) or ('time' in m):
+            best = metrics_df[m].idxmin()
+            worst = metrics_df[m].idxmax()
+            best_value = metrics_df[m].min()
+            worst_value = metrics_df[m].max()
+        else:
+            best = metrics_df[m].idxmax()
+            worst = metrics_df[m].idxmin()
+            best_value = metrics_df[m].max()
+            worst_value = metrics_df[m].min()
+        if 'time' not in m:
+            means[m+'_model_best'] = metrics_df['model'][best]
+            means[m+'_model_worst'] = metrics_df['model'][worst]
+            means[m+'_fold_best'] = best
+            means[m+'_fold_worst'] = worst
+            means[m+'_best'] = best_value
+            means[m+'_worst'] = worst_value            
+    return means
+        
+def build_model_with_cross_validation(algo_spec,dataframe,column_names,target,folds=5,show=True):
+    infos = build_naivebayes_model_with_cross_validation(algo_spec,dataframe,column_names,target,folds=5,show=show)
+    infos.update(
+        {
+            'nb_features':len(column_names),
+            'column_names':clean_combination_name(column_names),
+            'columns': column_names
+        })
+    return infos
+
+def build_cross_validation_model_on_all_subset_of_simple_features(algo_spec,dataframe,target,folds=5):
+    start = time.time()
+    all_combinations = list(all_subsets(all_numeric_columns(dataframe)))
+    steps_for_progress = int(len(all_combinations)/20)
+    print_section('%s : Build all models (with test+full) on every combination of features - %d lines' % (EXPERIMENT,len(dataframe)))
+    print_warning('With cross validation on %d folds' % folds)
+    print_warning('%d*%d models built - only %d logged here' % (len(all_combinations),folds,(int(len(all_combinations)/steps_for_progress))))
+    models_dict = dict()
+    print_header_infos_model(PRINT_CROSS_INFOS_ON_MODEL)
+    progress = tqdm(all_combinations)
+    num_model = 0
+    min_log_loss= 1000.0
+    new_min = False
+    for c in progress:
+        #if (len(c)) ==1:
+        if (len(c)) >0:
+            infos = build_model_with_cross_validation(algo_spec,dataframe,c,target,show=False)
+            #
+            models_dict[clean_combination_name(c)] = infos
+            if infos['logloss_proba_best']<min_log_loss:
+                min_log_loss = infos['logloss_proba_best']
+                print_info(format_model_infos('',PRINT_CROSS_INFOS_ON_MODEL,infos,''))
+                new_min=True
+            else:
+                new_min = False
+            # There is a smart panda progress bar but invisible in pdf
+            # So try to minimize logs and still have some progress info
+            if (num_model % steps_for_progress) == 0 and not new_min:
+                  print_warning(format_model_infos('',PRINT_CROSS_INFOS_ON_MODEL,infos,''))
+            num_model += 1
+            progress.refresh()
+    print_done('Done',top=start)
+    # Design mistake : need to convert dict to dataframe :(
+    return models_cross_dict_to_df(models_dict)
+
+    def save_models_dict_to_excel(results,tag = 'all_models'):
+        file_name = excel_file_name('_'.join([EXPERIMENT,tag]))
+        print_section('save %d results in %s' % (len(results),file_name))
+        results.to_excel(file_name,float_format="%.4f")
+        print_done("Done")
+
+
+    ### Scoring
