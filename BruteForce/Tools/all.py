@@ -312,11 +312,11 @@ def put_first(l,e):
     
 def get_best_submissions(submissions,n=3,metric='publicScore',):
     print_info('Best %d submissions based on %s' % (n,metric))
-    return submissions.nsmallest(n,metric)[put_first(submissions.columns.values.tolist(),metric)].sort()
+    return submissions.nsmallest(n,metric)[put_first(submissions.columns.values.tolist(),metric)]
 
 def get_last_submissions(submissions,n=3):
     print_info('Last %d submissions' % n)
-    return submissions.nlargest(n,'date')[put_first(submissions.columns.values.tolist(),'date')].sort()
+    return submissions.nlargest(n,'date')[put_first(submissions.columns.values.tolist(),'date')]
 
 
 
@@ -873,7 +873,7 @@ def build_cross_validation_model_on_all_subset_of_simple_features(algo_spec,data
     # Design mistake : need to convert dict to dataframe :(
     return models_cross_dict_to_df(models_dict)
 
-    def save_models_dict_to_excel(results,tag = 'all_models'):
+def save_models_dict_to_excel(results,tag = 'all_models'):
         file_name = excel_file_name('_'.join([EXPERIMENT,tag]))
         print_section('save %d results in %s' % (len(results),file_name))
         results.to_excel(file_name,float_format="%.4f")
@@ -881,3 +881,116 @@ def build_cross_validation_model_on_all_subset_of_simple_features(algo_spec,data
 
 
     ### Scoring
+
+def retrieve_model(results,criteria,kind,model_key):
+    # hack
+    k = 'model_'+kind
+    if k in results.columns:
+        model = results['model_'+kind][model_key]
+    else:
+        model = results[criteria+'_model_'+kind][model_key]
+
+    column_names = results['columns'][model_key]
+    return model,numpy.asarray(column_names)
+    
+def find_best_models(results,top,criteria,kind):
+    if 'logloss' in criteria:
+        return results.nsmallest(top,criteria+'_'+kind)
+    else:
+        return results.nlargest(top,criteria+'_'+kind)
+
+
+import datetime
+
+def show_docker_cp_command(absolute_file_name):
+    return 'docker cp '+ DOCKER_IMAGE_NAME+':'+zip_file_name(absolute_file_name)+ ' c:\\temp\\outputs'
+
+def show_kaggle_command(file_name,model_key):
+    return 'kaggle competitions submit quora-question-pairs -f "' + zip_file_name(file_name) +'" -m "' + file_name + ':'+model_key+'"'
+
+def show_docker_cp_commands(results):
+    print_section('Use these commands to transfer apply results to windows host')
+    for c in results['file_name'].apply(show_docker_cp_command):
+        print_warning(c)
+    print_done("")
+
+def show_kaggle_commands(results):
+    print_section('Use these commands to submit apply results to kaggle')
+    results.apply(lambda r: print_warning(show_kaggle_command(r.file_name,r.model_key)),axis=1)
+    print_done("")
+
+
+# return a dataframe fully ready to be converted in csv and published into kaggle
+def applyout_file_name(criteria,kind,model_key,tag=None,n=None):
+    # unfortunatley our design generated huge file names :(
+    # so we have to remove model_key form file name
+    if n is not None:
+        now = str(n)+'_'+datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
+    else:
+        now = datetime.datetime.now().strftime("%m_%d_%H_%M_%S")
+    if tag is None:
+        # absolute_file_name_csv = apply_absolute_file_name(criteria,kind,model_key)
+        absolute_file_name_csv = apply_absolute_file_name(criteria,kind,now)
+    else:
+        #absolute_file_name_csv = apply_absolute_file_name(tag+'_'+criteria,kind,model_key)
+        absolute_file_name_csv = apply_absolute_file_name(tag+'_'+criteria,kind,now)
+    return absolute_file_name_csv
+
+def simple_apply(results,criteria,kind,model_key,input_dataframe,proba=True,algo_spec=None):
+    model,column_names=retrieve_model(results,criteria,kind,model_key)
+    assert model is not None
+    assert column_names is not None
+    assert len(column_names) > 0
+    input_for_prediction=input_dataframe[column_names]
+    res = pandas.DataFrame()
+    if 'test_id' in input_dataframe.columns:
+        res['test_id']=input_dataframe['test_id']
+    if algo_spec is None:
+        assert model.predict_proba is not None, 'Bad type of model ?'
+        if proba:
+            res['is_duplicate'] = pandas.Series(model.predict_proba(input_for_prediction)[:,1],name='is_duplicate')
+        else:
+            res['is_duplicate'] = pandas.Series(model.predict(input_for_prediction)[:,1],name='is_duplicate')
+    else:
+        assert'scorer' in algo_spec
+        res['is_duplicate'] = algo_spec['scorer'](algo_spec,model,input_for_prediction,proba=proba)
+    return res  
+
+
+def submit_model(results,criteria,kind,model_key,input_dataframe,tag=None,proba=True,show_how_to_publish=True,kaggle=True,algo_spec=None,n=None):
+    absolute_file_name_csv = applyout_file_name(criteria,kind,model_key,tag=tag,n=n)
+    print_info('Doing apply')
+    prediction = simple_apply(results,criteria,kind,model_key,input_dataframe,proba=proba,algo_spec=algo_spec)
+    print_info('Generating CSV file')
+    prediction.to_csv(absolute_file_name_csv,index=False)
+    print_info('Zipping file')
+    absolute_file_name_zip = zip_file_and_delete(absolute_file_name_csv)
+    print_info('%s is ready' % absolute_file_name_zip)
+    if show_how_to_publish:
+        if kaggle:
+            print_warning('Use this commands to submit apply results to kaggle')
+            print_warning(show_kaggle_command(absolute_file_name_zip,model_key))
+        else:
+            print_warning('Use this command to transfer apply _results to Windows host')
+            print_warning(show_docker_cp_command(absolute_file_name_csv))
+    return absolute_file_name_csv
+    
+    
+    
+def submit_best_models(results,top,criteria,kind,input_dataframe,proba=True,kaggle=True,algo_spec=None,tag=None):
+    best_models = find_best_models(results,top,criteria,kind)
+    best_models['model_key']=numpy.asarray(best_models.index)
+    best_models['num']=numpy.arange(1,top+1)
+    files = list()
+    for mk,n in zip(best_models['model_key'],range(1,top+1)):
+        f = submit_model(results,criteria,kind,mk,input_dataframe,proba=proba,show_how_to_publish=False,kaggle=kaggle,tag=tag,algo_spec=algo_spec,n=n)
+        files.append(f)
+    best_models['file_name'] = files
+    best_models['docker']=best_models['file_name'].apply(show_docker_cp_command)
+    best_models['kaggle']=best_models.apply(lambda r: show_kaggle_command(r.file_name,r.model_key),axis=1)
+    print_done('Done')
+    if kaggle:
+        show_kaggle_commands(best_models)
+    else:
+        show_docker_cp_commands(best_models)
+    return best_models
