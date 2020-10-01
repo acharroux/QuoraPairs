@@ -23,4 +23,5 @@ jupyter-nbconvert --to PDFviaHTML ./Analysis/SimpleAnalysis.ipynb
 ./bash_profile
 histchars=?
 pip install xgboost
-
+pip install english_words
+pip install pyspellchecker
