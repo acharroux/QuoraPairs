@@ -160,6 +160,10 @@ def load_dataframe(file_name):
     df = pandas.read_pickle(local_pandas_store_file_name(file_name))
     return df
 
+def load_global_dataframe(file_name):
+    df = pandas.read_pickle(global_pandas_store_file_name(file_name))
+    return df
+
 def save_dataframe(df,file_name):
     print_info('Save %s' % file_name )
     df.to_pickle(local_pandas_store_file_name(file_name))
@@ -168,9 +172,9 @@ def save_global_dataframe(df,file_name):
     print_info('Save %s into global repository' % file_name )
     df.to_pickle(global_pandas_store_file_name(file_name))
 
-def load_or_build_dataframe(dataframe_name,file_name,builder,dataframe,param1=None):
+def load_or_build_dataframe(message,file_name,builder,dataframe,param1=None):
     start = time.time()
-    print_section('%s: Load or rebuild %s' % (dataframe_name,file_name))
+    print_section('%s: Load or rebuild %s' % (message,file_name))
     if os.path.exists(local_pandas_store_file_name(file_name)):
         print_info("!!!!! %s is cached!!!" % local_pandas_store_file_name(file_name))
         df = load_dataframe(file_name)
