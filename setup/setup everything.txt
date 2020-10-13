@@ -25,3 +25,15 @@ histchars=?
 pip install xgboost
 pip install english_words
 pip install pyspellchecker
+pip install pyldavis
+
+jupyter notebook
+jupyter notebook list
+
+bokeh proper size
+jupyter labextension install @jupyter-widgets/jupyterlab-manager
+jupyter labextension install @jupyter-widgets/jupyterlab-manager
+
+save from bokeh
+conda install selenium geckodriver firefox -c conda-forge
+

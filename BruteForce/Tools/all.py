@@ -92,6 +92,8 @@ def print_alert(s,top=0):
 
 ## Plenty of small tools to help not creating a huge mess
 
+import warnings
+warnings.filterwarnings('ignore') 
 
 # File tools
 #####################
