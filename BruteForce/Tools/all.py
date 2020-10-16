@@ -246,6 +246,10 @@ def multiplot_from_generator(g, num_columns, figsize_for_one_row=None):
     except StopIteration:
         pass
 
+def plot_save(file_name,ext='.png'):
+    plot.savefig(env_file_name(file_name,ext),dpi=300,edgecolor='black',bbox_inches='tight',pad_inches=0.1)
+    return None
+
 # apply tools
 #######################################
 
