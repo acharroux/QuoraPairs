@@ -125,6 +125,6 @@ PandasStore/
 *.csv
 *.zip
 *.pkl
-*.xlsx
+#*.xlsx
 *.swp
-*.pdf
+
