@@ -9,7 +9,7 @@ DOCKER_IMAGE_NAME = 'dev_ds_1'
 
 # Some common resources
 PANDAS_STORE = '../PandasStore'
-KAGGLE_EXE = '/root/anaconda3/bin/kaggle'
+KAGGLE_EXE = '/home/acharroux/anaconda3/bin/kaggle'
 PICKLE_EXTENSION = '.pkl'
 CLEAN_TRAINING_DATA = 'clean_training'
 CLEAN_CHALLENGE_DATA = 'clean_challenge'

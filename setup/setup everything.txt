@@ -17,9 +17,14 @@ conda install -c conda-forge tqdm
 
 pyppeteer-install
 pip install xgboost
+pip install wordcloud
+conda install altair
 pip install english_words
-pip install pyspellchecker
 pip install pyldavis
+pip install gensim
+sudo apt-get gcc
+sudo apt-get g++
+pip install textacy
 
 
 convert notebook to pdf

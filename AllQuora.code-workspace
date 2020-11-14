@@ -6,6 +6,8 @@
 	],
 	"settings": {
 		"python.condaPath": "/root/anaconda3/bin/conda",
-		"python.pythonPath": "/root/anaconda3/bin/python"
+		"python.pythonPath": "/home/acharroux/anaconda3/bin/python",
+		"python.dataScience.jupyterServerURI": "local",
+		"jupyter.jupyterServerType": "local"
 	}
 }
