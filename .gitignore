@@ -127,4 +127,5 @@ PandasStore/
 *.pkl
 #*.xlsx
 *.swp
+*.gz
 
